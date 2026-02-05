@@ -15,13 +15,12 @@ func health(w http.ResponseWriter, r *http.Request) {
 }
 
 func callEcho(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
 	msg := r.URL.Query().Get("msg")
 
 	url := fmt.Sprintf("http://127.0.0.1:8080/echo?msg=%s", msg)
 	resp, err := client.Get(url)
 	if err != nil {
-		log.Printf("service=B endpoint=/call-echo status=error error=%q latency_ms=%d", err.Error(), time.Since(start).Milliseconds())
+		log.Printf("service=B endpoint=/call-echo status=error error=%q latency_ms=%d", err.Error())
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"service_b": "ok",
@@ -32,10 +31,31 @@ func callEcho(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	var data map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&data)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("service=B outbound_call=serviceA path=/echo bad_status=%d", resp.StatusCode)
 
-	log.Printf("service=B endpoint=/call-echo status=ok latency_ms=%d", time.Since(start).Milliseconds())
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"service_b": "ok",
+			"service_a": "bad_status",
+			"status":    resp.StatusCode,
+		})
+		return
+	}
+
+	var data map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		log.Printf("service=B outbound_call=serviceA path=/echo decode_error=%q", err.Error())
+
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"service_b": "ok",
+			"service_a": "invalid_response",
+			"error":     err.Error(),
+		})
+		return
+	}
+
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"service_b": "ok",
 		"service_a": data,
@@ -43,8 +63,9 @@ func callEcho(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/health", health)
-	http.HandleFunc("/call-echo", callEcho)
+	http.HandleFunc("/health", withLogging("B", health))
+	http.HandleFunc("/call-echo", withLogging("B", callEcho))
+
 	log.Println("service=B listening on :8081")
 	log.Fatal(http.ListenAndServe(":8081", nil))
 }
