@@ -11,10 +11,13 @@ import (
 var client = &http.Client{Timeout: 1 * time.Second}
 
 func health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func callEcho(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	msg := r.URL.Query().Get("msg")
 
 	url := fmt.Sprintf("http://127.0.0.1:8080/echo?msg=%s", msg)

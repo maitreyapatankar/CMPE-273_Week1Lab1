@@ -7,10 +7,12 @@ import (
 )
 
 func health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func echo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	msg := r.URL.Query().Get("msg")
 	_ = json.NewEncoder(w).Encode(map[string]string{"echo": msg})
 }
